@@ -1525,17 +1525,34 @@ public class CommandLineRunner extends AbstractCommandLineRunner<Compiler, Compi
   }
 
   private void processFlagFiles() throws CmdLineException {
-    for (String flagFile : flags.flagFiles) {
-      try {
-        processFlagFile(flagFile);
-      } catch (IOException ioErr) {
-        reportError("ERROR - " + flagFile + " read error.");
+    Set<Path> visited = new HashSet<>();
+    List<String> pending = flags.flagFiles;
+    while (!pending.isEmpty()) {
+      flags.flagFiles = new ArrayList<>();
+      for (String flagFile : pending) {
+        try {
+          processFlagFile(flagFile, visited);
+        } catch (IOException ioErr) {
+          reportError("ERROR - " + flagFile + " read error.");
+        }
       }
+      pending = flags.flagFiles;
     }
   }
 
-  private void processFlagFile(String flagFileString) throws CmdLineException, IOException {
+  private void processFlagFile(String flagFileString, Set<Path> visited)
+      throws CmdLineException, IOException {
     Path flagFile = Path.of(flagFileString);
+    Path canonical;
+    try {
+      canonical = flagFile.toRealPath();
+    } catch (IOException e) {
+      canonical = flagFile.toAbsolutePath().normalize();
+    }
+    if (!visited.add(canonical)) {
+      reportError("ERROR - flagfile loop detected: " + flagFileString);
+      return;
+    }
 
     BufferedReader buffer = java.nio.file.Files.newBufferedReader(flagFile, UTF_8);
     // Builds the tokens.
@@ -1590,8 +1607,6 @@ public class CommandLineRunner extends AbstractCommandLineRunner<Compiler, Compi
     if (builder.length() != 0) {
       tokens.add(builder.toString());
     }
-
-    flags.flagFiles = new ArrayList<>();
 
     tokens = processArgs(tokens.toArray(new String[0]));
 
