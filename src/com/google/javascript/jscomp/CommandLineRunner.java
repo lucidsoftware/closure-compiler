@@ -1604,11 +1604,6 @@ public class CommandLineRunner extends AbstractCommandLineRunner<Compiler, Compi
     flags.parse(tokens);
     Flags.guardLevels.addAll(previousGuardLevels);
     Flags.mixedJsSources.addAll(previousMixedJsSources);
-
-    // Currently we are not supporting this (prevent direct/indirect loops)
-    if (!flags.flagFiles.isEmpty()) {
-      reportError("ERROR - Arguments in the file cannot contain " + "--flagfile option.");
-    }
   }
 
   @Override
