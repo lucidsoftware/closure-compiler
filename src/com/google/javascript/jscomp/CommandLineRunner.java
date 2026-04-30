@@ -87,6 +87,7 @@ import org.kohsuke.args4j.CmdLineParser;
 import org.kohsuke.args4j.NamedOptionDef;
 import org.kohsuke.args4j.Option;
 import org.kohsuke.args4j.OptionDef;
+import org.kohsuke.args4j.ParserProperties;
 import org.kohsuke.args4j.spi.FieldSetter;
 import org.kohsuke.args4j.spi.IntOptionHandler;
 import org.kohsuke.args4j.spi.OptionHandler;
@@ -962,7 +963,7 @@ public class CommandLineRunner extends AbstractCommandLineRunner<Compiler, Compi
     private final CmdLineParser parser;
 
     Flags() {
-      parser = new CmdLineParser(this);
+      parser = new CmdLineParser(this, ParserProperties.defaults().withAtSyntax(false));
     }
 
     /** Parse the given args list. */
