@@ -40,6 +40,8 @@ public class NodeTraversal {
   private final AbstractCompiler compiler;
   private final Callback callback;
   private final @Nullable ScopedCallback scopeCallback;
+  private final boolean alwaysTraverse;
+  private final boolean neverVisit;
   private final ScopeCreator scopeCreator;
   private final boolean obeyDestructuringAndDefaultValueExecutionOrder;
   private final boolean mayContainSyntheticBlocks;
@@ -486,6 +488,10 @@ public class NodeTraversal {
     this.callback = checkNotNull(builder.callback);
     this.scopeCallback =
         (this.callback instanceof ScopedCallback scopedCallback) ? scopedCallback : null;
+    this.alwaysTraverse =
+        this.callback instanceof AbstractPostOrderCallback
+            || this.callback instanceof AbstractScopedCallback;
+    this.neverVisit = this.callback instanceof AbstractPreOrderCallback;
     this.scopeCreator =
         (builder.scopeCreator == null)
             ? new SyntacticScopeCreator(this.compiler)
@@ -621,7 +627,7 @@ public class NodeTraversal {
 
     switch (n.getToken()) {
       case FUNCTION -> {
-        if (callback.shouldTraverse(this, n, null)) {
+        if (shouldTraverse(n, null)) {
           pushScope(s);
 
           Node fnName = n.getFirstChild();
@@ -635,11 +641,11 @@ public class NodeTraversal {
           traverseBranch(body, n);
 
           popScope();
-          callback.visit(this, n, null);
+          visit(n, null);
         }
       }
       case CLASS -> {
-        if (callback.shouldTraverse(this, n, null)) {
+        if (shouldTraverse(n, null)) {
           pushScope(s);
 
           Node className = n.getFirstChild();
@@ -654,43 +660,43 @@ public class NodeTraversal {
           traverseBranch(body, n);
 
           popScope();
-          callback.visit(this, n, null);
+          visit(n, null);
         }
       }
       case BLOCK, SWITCH_BODY -> {
-        if (callback.shouldTraverse(this, n, null)) {
+        if (shouldTraverse(n, null)) {
           pushScope(s);
 
           // traverseBranch is not called here to avoid re-creating the block scope.
           traverseChildren(n);
 
           popScope();
-          callback.visit(this, n, null);
+          visit(n, null);
         }
       }
       case MEMBER_FIELD_DEF -> {
         pushScope(s);
-        if (callback.shouldTraverse(this, n, null)) {
+        if (shouldTraverse(n, null)) {
 
           // traverseBranch is not called here to avoid re-creating the MemberFieldDef scope.
           traverseChildren(n);
 
-          callback.visit(this, n, null);
+          visit(n, null);
         }
         popScope();
       }
       case COMPUTED_FIELD_DEF -> {
         pushScope(s);
-        if (callback.shouldTraverse(this, n, null)) {
+        if (shouldTraverse(n, null)) {
 
           traverseBranch(n.getLastChild(), n);
 
-          callback.visit(this, n, null);
+          visit(n, null);
         }
         popScope();
       }
       case FOR_IN, FOR_OF, FOR_AWAIT_OF, FOR -> {
-        if (callback.shouldTraverse(this, n, null)) {
+        if (shouldTraverse(n, null)) {
           pushScope(s);
 
           Node forAssignmentParam = n.getFirstChild();
@@ -701,7 +707,7 @@ public class NodeTraversal {
           traverseBranch(forBodyScope, n);
 
           popScope();
-          callback.visit(this, n, null);
+          visit(n, null);
         }
       }
       default -> {
@@ -826,10 +832,10 @@ public class NodeTraversal {
     currentNode = n;
     currentScript = n;
     clearScriptState();
-    if (callback.shouldTraverse(this, n, parent)) {
+    if (shouldTraverse(n, parent)) {
       traverseChildren(n);
       currentNode = n;
-      callback.visit(this, n, parent);
+      visit(n, parent);
     }
     setChangeScope(null);
   }
@@ -838,10 +844,10 @@ public class NodeTraversal {
     Node changeScope = this.currentChangeScope;
     setChangeScope(n);
     currentNode = n;
-    if (callback.shouldTraverse(this, n, parent)) {
+    if (shouldTraverse(n, parent)) {
       traverseFunction(n, parent);
       currentNode = n;
-      callback.visit(this, n, parent);
+      visit(n, parent);
     }
     setChangeScope(changeScope);
   }
@@ -851,10 +857,10 @@ public class NodeTraversal {
     currentHoistScopeRoot = n;
     pushScope(n);
     currentNode = n;
-    if (callback.shouldTraverse(this, n, parent)) {
+    if (shouldTraverse(n, parent)) {
       traverseChildren(n);
       currentNode = n;
-      callback.visit(this, n, parent);
+      visit(n, parent);
     }
     popScope();
     // Module bodies don't nest
@@ -863,7 +869,7 @@ public class NodeTraversal {
 
   private void handleDestructuringOrDefaultValue(Node n, Node parent) {
     currentNode = n;
-    if (callback.shouldTraverse(this, n, parent)) {
+    if (shouldTraverse(n, parent)) {
       Node first = n.getFirstChild();
       Node second = first.getNext();
 
@@ -874,7 +880,7 @@ public class NodeTraversal {
       traverseBranch(first, n);
 
       currentNode = n;
-      callback.visit(this, n, parent);
+      visit(n, parent);
     }
   }
 
@@ -929,7 +935,7 @@ public class NodeTraversal {
     }
 
     currentNode = n;
-    if (!callback.shouldTraverse(this, n, parent)) {
+    if (!shouldTraverse(n, parent)) {
       return;
     }
 
@@ -963,7 +969,17 @@ public class NodeTraversal {
     }
 
     currentNode = n;
-    callback.visit(this, n, parent);
+    visit(n, parent);
+  }
+
+  private boolean shouldTraverse(Node n, @Nullable Node parent) {
+    return alwaysTraverse || callback.shouldTraverse(this, n, parent);
+  }
+
+  private void visit(Node n, @Nullable Node parent) {
+    if (!neverVisit) {
+      callback.visit(this, n, parent);
+    }
   }
 
   /** Traverses a function. */
@@ -1025,7 +1041,7 @@ public class NodeTraversal {
    */
   private void handleClass(Node n, Node parent) {
     this.currentNode = n;
-    if (!callback.shouldTraverse(this, n, parent)) {
+    if (!shouldTraverse(n, parent)) {
       return;
     }
 
@@ -1057,13 +1073,13 @@ public class NodeTraversal {
     popScope();
 
     this.currentNode = n;
-    callback.visit(this, n, parent);
+    visit(n, parent);
   }
 
   /** Traverse class members, excluding keys of computed props. */
   private void handleClassMembers(Node n, Node parent) {
     this.currentNode = n;
-    if (!callback.shouldTraverse(this, n, parent)) {
+    if (!shouldTraverse(n, parent)) {
       return;
     }
 
@@ -1082,10 +1098,10 @@ public class NodeTraversal {
         case COMPUTED_PROP -> {
           currentNode = n;
 
-          if (callback.shouldTraverse(this, child, n)) {
+          if (shouldTraverse(child, n)) {
             traverseBranch(child.getLastChild(), child);
             currentNode = n;
-            callback.visit(this, child, n);
+            visit(child, n);
           }
         }
         case COMPUTED_FIELD_DEF -> {
@@ -1095,12 +1111,12 @@ public class NodeTraversal {
           currentHoistScopeRoot = n;
           pushScope(child);
 
-          if (callback.shouldTraverse(this, child, n)) {
+          if (shouldTraverse(child, n)) {
             if (child.hasTwoChildren()) { // No RHS to traverse in `[x];` computed field case
               traverseBranch(child.getLastChild(), child);
             }
             currentNode = n;
-            callback.visit(this, child, n);
+            visit(child, n);
           }
 
           popScope();
@@ -1115,7 +1131,7 @@ public class NodeTraversal {
     }
 
     this.currentNode = n;
-    callback.visit(this, n, parent);
+    visit(n, parent);
   }
 
   private void handleMemberFieldDef(Node n, Node child) {
