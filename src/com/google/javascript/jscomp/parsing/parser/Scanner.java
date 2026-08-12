@@ -382,14 +382,9 @@ public class Scanner {
 
   private void skipMultiLineComment() {
     int startOffset = index;
-    nextChar(); // '/'
-    nextChar(); // '*'
-    while (!isAtEnd() && (peekChar() != '*' || peekChar(1) != '/')) {
-      nextChar();
-    }
-    if (!isAtEnd()) {
-      nextChar();
-      nextChar();
+    int commentEnd = contents.indexOf("*/", index + 2);
+    if (commentEnd >= 0) {
+      index = commentEnd + 2;
       Comment.Type type = Comment.Type.BLOCK;
       if (index - startOffset > 4) {
         if (this.contents.charAt(startOffset + 2) == '*') {
@@ -402,6 +397,7 @@ public class Scanner {
       String value = this.contents.substring(startOffset, index);
       recordComment(type, range, value);
     } else {
+      index = contentsLength;
       reportError("unterminated comment");
     }
   }
