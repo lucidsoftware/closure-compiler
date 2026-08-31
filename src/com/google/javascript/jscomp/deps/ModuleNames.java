@@ -78,13 +78,24 @@ public class ModuleNames {
   }
 
   private static String stripJsExtension(String fileName) {
+    String extension;
+
     if (fileName.endsWith(".js")) {
-      fileName = fileName.substring(0, fileName.length() - ".js".length());
-      // internal intermediary file format ".js.i.js"
-      if (fileName.endsWith(".js.i")) {
-        fileName = fileName.substring(0, fileName.length() - ".js.i".length());
-      }
+      extension = ".js";
+    } else if (fileName.endsWith(".cjs")) {
+      extension = ".cjs";
+    } else if (fileName.endsWith(".mjs")) {
+      extension = ".mjs";
+    } else {
+      return fileName;
     }
+
+    fileName = fileName.substring(0, fileName.length() - extension.length());
+    // internal intermediary file format ".js.i.js"
+    if (fileName.endsWith(".js.i")) {
+      fileName = fileName.substring(0, fileName.length() - ".js.i".length());
+    }
+
     return fileName;
   }
 
