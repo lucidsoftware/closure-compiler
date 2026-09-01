@@ -72,6 +72,16 @@ public final class ModuleLoaderTest {
   }
 
   @Test
+  public void testCjsExtensionIsOmittedFromModuleName() {
+    assertThat(ModuleNames.fileToModuleName("js/a.cjs")).isEqualTo("module$js$a");
+  }
+
+  @Test
+  public void testMjsExtensionIsOmittedFromModuleName() {
+    assertThat(ModuleNames.fileToModuleName("js/a.mjs")).isEqualTo("module$js$a");
+  }
+
+  @Test
   public void testLocateJsNode() {
     ModuleLoader loader =
         ModuleLoader.builder()
